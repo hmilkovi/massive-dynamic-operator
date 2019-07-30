@@ -6,7 +6,7 @@
     kind: Namespace
     name: "monitoring"
 
-- name: Deploy ES alerting
+- name: Add ES alerting rule
   k8s:
     state: present
     definition:
@@ -24,6 +24,16 @@
             labels:
               component: es-alert
           spec:
+            initContainers:
+            - name: init-rules
+              image: hrvoje6/es-alerting:v1
+              command: ["/bin/sh"]
+              args: ["-c", "/bin/echo '{{ alert_body | to_json }}' > /etc/go-elasticsearch-alerts/rules/{{ alert_filename }} || true"]
+              securityContext:
+                privileged: true
+              volumeMounts:
+              - name: alert-rules
+                mountPath: /etc/go-elasticsearch-alerts/rules
             containers:
             - name: es-alert
               image: hrvoje6/es-alerting:v1
@@ -36,3 +46,44 @@
                 path: /etc/go-elasticsearch-alerts/rules
                 type: DirectoryOrCreate
   when: enable_alerting|default(false)|bool
+
+- name: Remove ES alerting rule
+  k8s:
+    state: present
+    definition:
+      apiVersion: extensions/v1beta1
+      kind: Deployment
+      metadata:
+        name: es-alert
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            component: es-alert
+        template:
+          metadata:
+            labels:
+              component: es-alert
+          spec:
+            initContainers:
+            - name: init-rules
+              image: hrvoje6/es-alerting:v1
+              command: ["/bin/sh"]
+              args: ["-c", "/bin/rm /etc/go-elasticsearch-alerts/rules/{{ alert_filename }}"]
+              securityContext:
+                privileged: true
+              volumeMounts:
+              - name: alert-rules
+                mountPath: /etc/go-elasticsearch-alerts/rules
+            containers:
+            - name: es-alert
+              image: hrvoje6/es-alerting:v1
+              volumeMounts:
+              - name: alert-rules
+                mountPath: /etc/go-elasticsearch-alerts/rules
+            volumes:
+            - name: alert-rules
+              hostPath:
+                path: /etc/go-elasticsearch-alerts/rules
+                type: DirectoryOrCreate
+  when: enable_alerting|default(true)|bool == false

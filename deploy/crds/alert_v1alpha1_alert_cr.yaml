@@ -6,79 +6,40 @@ metadata:
 spec:
   enable_alerting: true
   alert_filename: "new-external-ip-alert.json"
-  alert_body: >
-    {
-      "name": "new-external-ip-alert",
-      "index": "packetbeat-7.2.0-*",
-      "schedule": "@every 1m",
-      "body": {
-          "query": {
-            "bool": {
-                "must": [
-                  {
-                    "term": {
-                      "event.category": {
-                          "value": "network_traffic"
-                      }
-                    }
-                  }
-                ],
-                "must_not": [
-                  {
-                    "term": {
-                      "source.ip": {
-                          "value": "127.0.0.1"
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      "source.ip": {
-                          "gte": "192.168.56.0",
-                          "lte": "192.168.56.255"
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      "source.ip": {
-                          "gte": "10.154.0.0",
-                          "lte": "10.154.0.255"
-                      }
-                    }
-                  },
-                  {
-                    "range": {
-                      "source.ip": {
-                          "gte": "10.96.0.0",
-                          "lte": "10.96.0.255"
-                      }
-                    }
-                  }
-                ],
-                "filter": [
-                  {
-                    "range": {
-                      "@timestamp": {
-                          "gte": "now-1m/m"
-                      }
-                    }
-                  }
-                ]
-            }
-          },
-          "sort": [
-            {
-              "@timestamp": "desc"
-            }
-          ]
-      },
-      "outputs": [
-        {
-          "type": "file",
-          "config": {
-              "file": "/dev/stdout"
-          }
-        }
-      ]
-    }
+  alert_body:
+    name: new-external-ip-alert
+    index: packetbeat-7.2.0-*
+    schedule: "@every 1m"
+    body:
+      query:
+        bool:
+          must:
+          - term:
+              event.category:
+                value: network_traffic
+          must_not:
+          - term:
+              source.ip:
+                value: 127.0.0.1
+          - range:
+              source.ip:
+                gte: 192.168.56.0
+                lte: 192.168.56.255
+          - range:
+              source.ip:
+                gte: 10.154.0.0
+                lte: 10.154.0.255
+          - range:
+              source.ip:
+                gte: 10.96.0.0
+                lte: 10.96.0.255
+          filter:
+          - range:
+              "@timestamp":
+                gte: now-1m/m
+      sort:
+      - "@timestamp": desc
+    outputs:
+    - type: file
+      config:
+        file: "/dev/stdout"

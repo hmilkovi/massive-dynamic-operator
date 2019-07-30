@@ -8,6 +8,10 @@
   group: alert.massive.dynamic.io
   kind: Alert
   role: /opt/ansible/roles/alerting
+  finalizer:
+    name: finalizer.alert.massive.dynamic.io
+    vars:
+      enable_alerting: false
 
 - version: v1alpha1
   group: scan.massive.dynamic.io
