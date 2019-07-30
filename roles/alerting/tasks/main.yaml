@@ -1,0 +1,38 @@
+---
+- name: Create monitoring namespace
+  k8s:
+    state: present
+    api_version: v1
+    kind: Namespace
+    name: "monitoring"
+
+- name: Deploy ES alerting
+  k8s:
+    state: present
+    definition:
+      apiVersion: extensions/v1beta1
+      kind: Deployment
+      metadata:
+        name: es-alert
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            component: es-alert
+        template:
+          metadata:
+            labels:
+              component: es-alert
+          spec:
+            containers:
+            - name: es-alert
+              image: hrvoje6/es-alerting:v1
+              volumeMounts:
+              - name: alert-rules
+                mountPath: /etc/go-elasticsearch-alerts/rules
+            volumes:
+            - name: alert-rules
+              hostPath:
+                path: /etc/go-elasticsearch-alerts/rules
+                type: DirectoryOrCreate
+  when: enable_alerting|default(false)|bool

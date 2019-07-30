@@ -1,0 +1,8 @@
+apiVersion: scan.massive.dynamic.io/v1alpha1
+kind: Scan
+metadata:
+  name: offsec-internal-scan
+  namespace: kube-system
+spec:
+  # Add fields here
+  size: 3

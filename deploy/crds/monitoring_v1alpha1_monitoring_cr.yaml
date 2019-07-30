@@ -1,0 +1,11 @@
+apiVersion: monitoring.massive.dynamic.io/v1alpha1
+kind: Monitoring
+metadata:
+  name: elk-monitoring
+  namespace: kube-system
+spec:
+  deploy_packetbeat: true
+  deploy_filebeat: true
+  enable_curator: true
+  curator_shedule: "0 8 * * *"
+  es_retain_days: 7

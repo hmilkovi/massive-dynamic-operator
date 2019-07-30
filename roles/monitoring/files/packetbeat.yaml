@@ -1,0 +1,126 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: packetbeat-dynamic-config
+  namespace: monitoring
+  labels:
+    k8s-app: packetbeat-dynamic
+    kubernetes.io/cluster-service: "true"
+data:
+  packetbeat.yml: |-
+    setup.dashboards.enabled: true
+    setup.template.enabled: true
+    setup.template.settings:
+    index.number_of_shards: 1
+    packetbeat.interfaces.device: any
+    packetbeat.interfaces.type: af_packet
+    packetbeat.interfaces.buffer_size_mb: 100
+    packetbeat.protocols:
+    - type: dns
+      ports: [53]
+      include_authorities: true
+      include_additionals: true
+    - type: http
+      hide_keywords: ["pass", "password", "passwd"]
+      send_headers: ["User-Agent", "Cookie", "Set-Cookie"]
+      split_cookie: true
+      real_ip_header: "X-Forwarded-For"
+      ports: [80, 8000, 8080, 9200]
+    - type: mysql
+      ports: [3306]
+    - type: pgsql
+      ports: [5432]
+    - type: tls
+      ports: [443, 993, 995, 5223, 8443, 8883, 9243]
+    packetbeat.flows:
+      timeout: 30s
+      period: 10s
+    output.elasticsearch:
+      hosts: ["elasticsearch:9200"]
+    setup.kibana:
+      host: "kibana:5601"
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: packetbeat-dynamic
+  namespace: monitoring
+  labels:
+    k8s-app: packetbeat-dynamic
+    kubernetes.io/cluster-service: "true"
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: packetbeat-dynamic
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: packetbeat-dynamic
+      terminationGracePeriodSeconds: 30
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: packetbeat-dynamic
+        image: docker.elastic.co/beats/packetbeat:7.2.0
+        imagePullPolicy: Always
+        args: [
+          "-c", "/etc/packetbeat.yml",
+          "-e",
+        ]
+        securityContext:
+          runAsUser: 0
+          capabilities:
+            add:
+            - NET_ADMIN
+        volumeMounts:
+        - name: config
+          mountPath: /etc/packetbeat.yml
+          readOnly: true
+          subPath: packetbeat.yml
+        - name: data
+          mountPath: /usr/share/packetbeat/data
+      volumes:
+      - name: config
+        configMap:
+          defaultMode: 0600
+          name: packetbeat-dynamic-config
+      - name: data
+        emptyDir: {}
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: packetbeat-dynamic
+subjects:
+- kind: ServiceAccount
+  name: packetbeat-dynamic
+  namespace: monitoring
+roleRef:
+  kind: ClusterRole
+  name: packetbeat-dynamic
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRole
+metadata:
+  name: packetbeat-dynamic
+  labels:
+    k8s-app: packetbeat-dynamic
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources:
+  - namespaces
+  - pods
+  verbs:
+  - get
+  - watch
+  - list
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: packetbeat-dynamic
+  namespace: monitoring
+  labels:
+    k8s-app: packetbeat-dynamic

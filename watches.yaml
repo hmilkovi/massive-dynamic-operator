@@ -1,0 +1,15 @@
+---
+- version: v1alpha1
+  group: monitoring.massive.dynamic.io
+  kind: Monitoring
+  role: /opt/ansible/roles/monitoring
+
+- version: v1alpha1
+  group: alert.massive.dynamic.io
+  kind: Alert
+  role: /opt/ansible/roles/alerting
+
+- version: v1alpha1
+  group: scan.massive.dynamic.io
+  kind: Scan
+  role: /opt/ansible/roles/offsec

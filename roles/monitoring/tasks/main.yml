@@ -1,0 +1,139 @@
+---
+- name: Create monitoring namespace
+  k8s:
+    state: present
+    api_version: v1
+    kind: Namespace
+    name: "monitoring"
+
+- name: Deploy ELK stack
+  k8s:
+    state: present
+    src: /opt/ansible/roles/monitoring/files/{{item.name}}
+  loop:
+    - name: elasticsearch.yaml
+    - name: kibana.yaml
+
+- name: Deploy Packetbeat
+  k8s:
+    state: present
+    src: /opt/ansible/roles/monitoring/files/packetbeat.yaml
+  when: deploy_packetbeat|default(false)|bool
+
+- name: Deploy Filebeat
+  k8s:
+    state: present
+    src: /opt/ansible/roles/monitoring/files/filebeat.yaml
+  when: deploy_filebeat|default(false)|bool
+
+- name: Deploy Curator ConfigMap
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: curator-config
+        namespace: monitoring
+        labels:
+          k8s-app: curator
+      data:
+        curator.yml: |-
+          client:
+            hosts:
+              - elasticsearch
+            port: 9200
+            url_prefix:
+            use_ssl: False
+            certificate:
+            client_cert:
+            client_key:
+            ssl_no_validate: False
+            timeout: 30
+            master_only: False
+          logging:
+            loglevel: INFO
+            logfile:
+            logformat: default
+            blacklist: ['elasticsearch', 'urllib3']
+        curator-actions.yml: |-
+          actions:
+            1:
+              action: delete_indices
+              description: >-
+                Delete indices older than {{ es_retain_days }} days ('^apm-|^filebeat-|^packetbeat-')
+              options:
+                ignore_empty_list: True
+                disable_action: False
+                continue_if_exception: False
+              filters:
+              - filtertype: pattern
+                kind: regex
+                value: '^apm-|^filebeat-'
+              - filtertype: age
+                source: name
+                direction: older
+                timestring: '%Y.%m.%d'
+                unit: days
+                unit_count: {{ es_retain_days }}
+            2:
+              action: close
+              description: >-
+                Close indices older than {{ es_retain_days - 1 }} days ('^apm-|^filebeat-|^packetbeat-')
+              options:
+                delete_aliases: False
+                ignore_empty_list: True
+                continue_if_exception: False
+                disable_action: True
+              filters:
+              - filtertype: pattern
+                kind: regex
+                value: '^apm-|^filebeat-'
+              - filtertype: age
+                source: name
+                direction: older
+                timestring: '%Y.%m.%d'
+                unit: days
+                unit_count: {{ es_retain_days - 1 }}
+  when: enable_curator|default(false)|bool
+
+- name: Deploy Curator CronJob
+  k8s:
+    state: present
+    definition:
+      apiVersion: batch/v1beta1
+      kind: CronJob
+      metadata:
+        name: curator
+        namespace: monitoring
+        labels:
+          app: curator
+      spec:
+        schedule: "{{ curator_shedule }}"
+        successfulJobsHistoryLimit: 1
+        failedJobsHistoryLimit: 3
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 120
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                securityContext:
+                  runAsUser: 1000
+                  fsGroup: 1000
+                containers:
+                - image: bobrik/curator:5.7.6
+                  securityContext:
+                    runAsUser: 1000
+                  imagePullPolicy: Always
+                  name: curator-es
+                  args: ["--config", "/etc/config/curator.yml", "/etc/config/curator-actions.yml"]
+                  volumeMounts:
+                  - mountPath: /etc/config
+                    name: curator-config
+                restartPolicy: OnFailure
+                volumes:
+                - name: curator-config
+                  configMap:
+                    name: curator-config
+  when: enable_curator|default(false)|bool

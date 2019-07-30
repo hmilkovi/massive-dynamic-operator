@@ -1,0 +1,19 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: alerts.alert.massive.dynamic.io
+spec:
+  group: alert.massive.dynamic.io
+  names:
+    kind: Alert
+    listKind: AlertList
+    plural: alerts
+    singular: alert
+  scope: Namespaced
+  subresources:
+    status: {}
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
